@@ -119,7 +119,12 @@ class XmlRuleParser:
 
         body = XmlRuleParser._get_text(container, "body", keep_whitespace=True)
 
-        return RewriteRule(pattern, status, headers, body)
+        try:
+            return RewriteRule(pattern, status, headers, body)
+        except re.error as e:
+            # NOTE: on Python 3.13+ this is re.PatternError, which does not
+            # derive from ValueError
+            raise ValueError("Invalid pattern \"" + pattern + "\": " + str(e))
 
     @staticmethod
     def _get_text(elem, name: str, keep_whitespace: bool = False):
