@@ -182,9 +182,21 @@ if __name__ == "__main__":
     r = rules[1]
     assert(r.status == 404)
     assert(r.headers == {})
-    assert(r.body == '{\n    "pretty": true\n}')
+    assert(r.body == '{"pretty": true}')
     assert(r.matches("https://exemplo.com/flag"))
     assert(not r.matches("https://exemplo.com/flagged"))
+
+    # the indentation is dropped, but the inner formatting of a pretty
+    # printed body is preserved
+    rules = XmlRuleParser.parse("""<rules><rule>
+        <pattern>x</pattern>
+        <body>
+        {
+            "a": 1
+        }
+        </body>
+    </rule></rules>""")
+    assert(rules[0].body == '{\n    "a": 1\n}')
 
     # a single <rule> as document root
     rules = XmlRuleParser.parse("""<rule>
