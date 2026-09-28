@@ -32,8 +32,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Test the XML rewrite rules parser
+        run: python app/src/main/python/modules/rewrite_rules.py
+
       - name: Assemble release APKs
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Check 16 KB alignment of native libraries
         run: .github/check_16kb_alignment.sh $(find app/build/outputs/apk -name '*.apk')
+
+      # The release APKs are unsigned (the signing keystore is not in the
+      # repo), so build the debug variants, which are signed with the debug key
+      # and can be installed on a device.
+      - name: Assemble debug APKs
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCAPdroid-mitm-debug-apk
+          path: app/build/outputs/apk/debug/**/*.apk
+          if-no-files-found: error
