@@ -29,6 +29,7 @@ from mitmproxy.tools.main import mitmdump, process_options
 from mitmproxy.certs import CertStore, Cert
 from pcapdroid import PCAPdroid, AddonOpts
 from js_injector import JsInjector
+from modules.response_rewriter import ResponseRewriter
 from pathlib import Path
 import traceback
 import socket
@@ -46,6 +47,7 @@ if (sys.platform == "android") and (mitmproxy.platform.original_addr is None):
 master = None
 pcapdroid = None
 js_injector = None
+response_rewriter = None
 running = False
 
 orig_stdout = sys.stdout
@@ -101,17 +103,18 @@ def jarray_to_set(arr):
 # Entrypoint: runs mitmproxy
 # From mitmproxy.tools.main.run, without the signal handlers
 def run(fd: int, jenabled_addons, addons_home: str, dump_client: bool,
-        dump_keylog: bool, short_payload: bool, mitm_args: str):
+        dump_keylog: bool, short_payload: bool, mitm_args: str,
+        rewrite_rules_xml: str = ""):
     global master
     global running
-    global pcapdroid, js_injector
+    global pcapdroid, js_injector, response_rewriter
     running = True
 
     try:
         with socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM) as sock:
             async def main():
                 global master
-                global pcapdroid, js_injector
+                global pcapdroid, js_injector, response_rewriter
                 opts = options.Options()
                 master = dump.DumpMaster(opts)
 
@@ -134,6 +137,11 @@ def run(fd: int, jenabled_addons, addons_home: str, dump_client: bool,
                 if "Js Injector" in enabled_addons:
                     js_injector = JsInjector()
                     master.addons.add(js_injector)
+
+                # Response rewriter addon (enabled when rules were imported)
+                if rewrite_rules_xml:
+                    response_rewriter = ResponseRewriter(rewrite_rules_xml)
+                    master.addons.add(response_rewriter)
 
                 if os.path.exists(addons_home):
                     sys.path.append(addons_home)
@@ -178,6 +186,7 @@ def run(fd: int, jenabled_addons, addons_home: str, dump_client: bool,
     running = False
     pcapdroid = None
     js_injector = None
+    response_rewriter = None
 
 # Entrypoint: stops the running mitmproxy
 def stop():
