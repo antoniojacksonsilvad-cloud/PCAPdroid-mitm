@@ -56,6 +56,7 @@ public class MitmService extends Service implements Runnable {
     Thread mThread;
     PyObject mitm;
     MitmConfig mConf;
+    String mRewriteRulesXml;
     String m_home;
 
     @SuppressLint("BatteryLife")
@@ -135,6 +136,15 @@ public class MitmService extends Service implements Runnable {
             case MitmAPI.MSG_DISABLE_DOZE:
                 askDisableDoze();
                 break;
+            case MitmAPI.MSG_SET_REWRITE_RULES:
+                if (mThread != null) {
+                    log_w("MITM already running, restart the capture to apply the new rewrite rules");
+                    break;
+                }
+
+                mRewriteRulesXml = msg.getData().getString(MitmAPI.REWRITE_RULES_RESULT);
+                log_i("Received " + (mRewriteRulesXml == null ? "no" : "some") + " rewrite rules");
+                break;
             default:
                 log_w("Unknown message: " + msg.what);
         }
@@ -190,7 +200,8 @@ public class MitmService extends Service implements Runnable {
 
         try {
             mitm.callAttr("run", mFd.getFd(), enabled_addons, addons_home.toString(), dump_client,
-                    mConf.dumpMasterSecrets, mConf.shortPayload, args);
+                    mConf.dumpMasterSecrets, mConf.shortPayload, args,
+                    (mRewriteRulesXml != null) ? mRewriteRulesXml : "");
         } finally {
             try {
                 if(mFd != null)
@@ -203,6 +214,7 @@ public class MitmService extends Service implements Runnable {
             mFd = null;
             mConf = null;
             mThread = null;
+            mRewriteRulesXml = null;
         }
     }
 
