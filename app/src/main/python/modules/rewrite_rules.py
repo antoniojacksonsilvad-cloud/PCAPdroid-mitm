@@ -188,15 +188,11 @@ if __name__ == "__main__":
 
     # the indentation is dropped, but the inner formatting of a pretty
     # printed body is preserved
-    rules = XmlRuleParser.parse("""<rules><rule>
-        <pattern>x</pattern>
-        <body>
-        {
-            "a": 1
-        }
-        </body>
-    </rule></rules>""")
-    assert(rules[0].body == '{\n    "a": 1\n}')
+    rules = XmlRuleParser.parse("<rules><rule>"
+            + "<pattern>x</pattern>"
+            + "<body>\n  {\n    \"a\": 1\n  }\n</body>"
+            + "</rule></rules>")
+    assert(rules[0].body == "{\n    \"a\": 1\n}")
 
     # a single <rule> as document root
     rules = XmlRuleParser.parse("""<rule>
