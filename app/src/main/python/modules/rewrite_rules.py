@@ -131,8 +131,9 @@ class XmlRuleParser:
         text = "".join(child.itertext())
 
         if keep_whitespace:
-            # when the XML is pretty-printed, the body is surrounded by the
-            # indentation newlines: drop them but keep the internal formatting
+            # when the XML is pretty-printed, the body is wrapped in the
+            # indentation newlines: drop the whitespace surrounding it, but
+            # keep the internal formatting of the body as it is
             if text.startswith("\n"):
                 text = text.strip()
         else:
@@ -186,13 +187,13 @@ if __name__ == "__main__":
     assert(r.matches("https://exemplo.com/flag"))
     assert(not r.matches("https://exemplo.com/flagged"))
 
-    # the indentation is dropped, but the inner formatting of a pretty
-    # printed body is preserved
+    # only the whitespace surrounding the body is dropped, the internal
+    # formatting is kept as it is
     rules = XmlRuleParser.parse("<rules><rule>"
             + "<pattern>x</pattern>"
             + "<body>\n  {\n    \"a\": 1\n  }\n</body>"
             + "</rule></rules>")
-    assert(rules[0].body == "{\n    \"a\": 1\n}")
+    assert(rules[0].body == "{\n    \"a\": 1\n  }")
 
     # a single <rule> as document root
     rules = XmlRuleParser.parse("""<rule>
