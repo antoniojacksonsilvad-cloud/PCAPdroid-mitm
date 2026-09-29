@@ -18,6 +18,8 @@
 #  Copyright 2026 - antoniojacksonsilvad-cloud
 #
 
+import re
+
 from mitmproxy import http
 from modules.rewrite_rules import parse_rules
 
@@ -63,6 +65,20 @@ class ResponseRewriter:
         if not self.rules:
             print("No rewrite rules loaded")
 
+    """
+    Rewrites an outgoing request. The request hook of mitmproxy runs before
+    the message is forwarded to the server, so this changes what actually
+    goes on the wire.
+    """
+    def request(self, flow: http.HTTPFlow):
+        if not self.rules:
+            return
+
+        for rule in self.rules:
+            if rule.applies_to("request") and self._match(rule, flow):
+                self.rewrite_request(rule, flow)
+                return
+
     def response(self, flow: http.HTTPFlow):
         if not self.rules:
             return
@@ -70,15 +86,15 @@ class ResponseRewriter:
         if flow.response is None:
             return
 
-        # https://docs.mitmproxy.org/stable/api/mitmproxy/http.html#HTTPFlow
-        url = flow.request.pretty_url
-        host = flow.request.host
-
         for rule in self.rules:
-            if rule.applies_to("response") and rule.matches(url, host):
+            if rule.applies_to("response") and self._match(rule, flow):
                 # the first matching rule wins
                 self.rewrite(rule, flow)
                 return
+
+    def _match(self, rule, flow: http.HTTPFlow) -> bool:
+        # https://docs.mitmproxy.org/stable/api/mitmproxy/http.html#HTTPFlow
+        return rule.matches(flow.request.pretty_url, flow.request.host)
 
     def rewrite(self, rule, flow: http.HTTPFlow):
         response = flow.response
@@ -95,6 +111,70 @@ class ResponseRewriter:
         if applied:
             print("[" + str(response.status_code) + "] rewritten " + url +
                   " (" + ", ".join(applied) + ")")
+
+    # ----- the request rewriting
+
+    def rewrite_request(self, rule, flow: http.HTTPFlow):
+        request = flow.request
+        applied = []
+
+        # the URL actions come first: they can change the query string, which
+        # the query parameter actions then work on
+        if rule.url_subs:
+            self.apply_url_subs(rule, request, applied)
+
+        if rule.query_remove or rule.query_add:
+            self.apply_query(rule, request, applied)
+
+        self.apply_headers(rule, request, applied)
+        self.apply_body(rule, request, applied)
+
+        if applied:
+            print("--> " + str(request.method) + " " + request.pretty_url +
+                  " rewritten (" + ", ".join(applied) + ")")
+
+    def apply_url_subs(self, rule, request, applied: list):
+        changed = False
+
+        for sub in rule.url_subs:
+            new = sub.apply(request.pretty_url)
+            if new == request.pretty_url:
+                continue
+
+            try:
+                request.url = new
+            except ValueError as e:
+                # an invalid URL is left untouched rather than breaking the flow
+                print("Invalid URL produced by a rewrite rule: " + str(e))
+                continue
+
+            applied.append("url=" + str(sub))
+            changed = True
+
+        if changed and (request.headers.get("host", None) != request.host):
+            # the host may have changed: keep the Host header in sync, otherwise
+            # the server would route the request to the original host
+            request.headers["host"] = request.authority
+
+    def apply_query(self, rule, request, applied: list):
+        if rule.query_remove:
+            removed = 0
+            # the query is a list of (name, value) pairs: the same name can be
+            # repeated, so every occurrence has to be filtered out
+            kept = []
+            for name, value in request.query.items(multi=True):
+                if any(_name_matches(name, pat) for pat in rule.query_remove):
+                    removed += 1
+                else:
+                    kept.append((name, value))
+
+            if removed:
+                request.query = kept
+                applied.append("rm-query=" + ",".join(rule.query_remove))
+
+        for name, value in rule.query_add.items():
+            request.query[name] = value
+            applied.append("query=" + name)
 
     # ----- actions shared by the request and the response rewriting
 
@@ -144,3 +224,16 @@ class ResponseRewriter:
         message.text = new
         applied.append("body=" + str(len(message.content)) + "B (" +
                        ",".join(str(s) for s in rule.body_subs) + ")")
+
+
+def _name_matches(name: str, pattern: str) -> bool:
+    """True when a query parameter name matches a Charles rule pattern.
+
+    The pattern is a regular expression, as in the Charles rewrite rules, but
+    it can also be a plain name, which is the common case.
+    """
+    try:
+        return (re.search(pattern, name) is not None)
+    except re.error:
+        # not a valid regex: fall back to an exact match
+        return (name == pattern)

@@ -69,9 +69,9 @@ class RewriteRule:
         return (self.scope == "both") or (self.scope == which)
 
     def matches(self, url: str, host: str = None) -> bool:
-        if (self.regex is None) and (self.host_regex is None):
-            return False
-
+        # a rule with neither a host pattern nor a URL pattern puts no
+        # constraint on the traffic: this is what an empty <location/> of a
+        # Charles rewrite set means, so it has to match everything
         if self.host_regex is not None:
             if (host is None) or (self.host_regex.search(host) is None):
                 return False
