@@ -79,6 +79,7 @@ class ResponseRewriter:
 
     def rewrite(self, rule, flow: http.HTTPFlow):
         response = flow.response
+        url = flow.request.pretty_url
         applied = []
 
         if rule.status is not None:
