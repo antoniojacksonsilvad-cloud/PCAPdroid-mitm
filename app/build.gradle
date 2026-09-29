@@ -12,16 +12,20 @@ android {
             keyPassword 'android'
         }
 
-        // The CI provides a fixed debug keystore through the KEYSTORE_FILE
-        // property, so that every build is signed with the same key and can
-        // be installed over the previous one. When the property is not set
-        // (local builds), the default debug key of the machine is used.
-        if (project.hasProperty("KEYSTORE_FILE")) {
+        // The CI provides a fixed debug keystore through the environment, so
+        // that every build is signed with the same key and can be installed
+        // over the previous one. When the variables are not set (local
+        // builds), the default debug key of the machine is used.
+        // NOTE: the environment is read with System.getenv, environment
+        // variables are not Gradle project properties, so hasProperty()
+        // would never see them.
+        def keystore_file = System.getenv("KEYSTORE_FILE")
+        if ((keystore_file != null) && !keystore_file.isEmpty()) {
             debug {
-                storeFile file( project.property("KEYSTORE_FILE") )
-                storePassword project.property("KEYSTORE_PASSWORD")
-                keyAlias project.property("KEY_ALIAS")
-                keyPassword project.property("KEY_PASSWORD")
+                storeFile file( keystore_file )
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
             }
         }
     }
