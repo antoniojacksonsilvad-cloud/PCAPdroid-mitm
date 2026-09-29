@@ -100,15 +100,30 @@ def jarray_to_set(arr):
         rv.add(elem)
     return rv
 
+# Reload the rewrite rules of the running proxy, so that the changes made in
+# PCAPdroid are applied without restarting the capture.
+# Called from MitmService.handleMessage.
+def set_rewrite_rules(rules_xmls):
+    global response_rewriter
+
+    if response_rewriter is None:
+        print("No response rewriter running, ignoring the rewrite rules")
+        return
+
+    response_rewriter.load(rules_xmls)
+
 # Entrypoint: runs mitmproxy
 # From mitmproxy.tools.main.run, without the signal handlers
 def run(fd: int, jenabled_addons, addons_home: str, dump_client: bool,
         dump_keylog: bool, short_payload: bool, mitm_args: str,
-        rewrite_rules_xml: str = ""):
+        rewrite_rules_xml=None):
     global master
     global running
     global pcapdroid, js_injector, response_rewriter
     running = True
+
+    if rewrite_rules_xml is None:
+        rewrite_rules_xml = []
 
     try:
         with socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -139,7 +154,7 @@ def run(fd: int, jenabled_addons, addons_home: str, dump_client: bool,
                     master.addons.add(js_injector)
 
                 # Response rewriter addon (enabled when rules were imported)
-                if rewrite_rules_xml:
+                if len(rewrite_rules_xml) > 0:
                     response_rewriter = ResponseRewriter(rewrite_rules_xml)
                     master.addons.add(response_rewriter)
 

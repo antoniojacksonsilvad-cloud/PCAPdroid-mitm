@@ -27,21 +27,39 @@ XML rules. This operates on the real traffic: the modified response is what
 gets forwarded to the client.
 """
 class ResponseRewriter:
-    def __init__(self, rules_xml: str):
+    def __init__(self, rules_xmls):
         self.rules = []
+        self.load(rules_xmls)
 
-        if not rules_xml:
-            return
+    """
+    Replaces the rules with the ones found in the given XML documents, one
+    per enabled file. A document which cannot be parsed is skipped, so that a
+    single bad file does not disable all the others.
+    """
+    def load(self, rules_xmls):
+        rules = []
 
-        try:
-            self.rules = XmlRuleParser.parse(rules_xml)
-        except Exception as e:
-            # never prevent the proxy from starting on a bad rules file
-            print("Failed to parse the rewrite rules: " + str(e))
-            return
+        if rules_xmls is None:
+            rules_xmls = []
+
+        for xml in rules_xmls:
+            if not xml:
+                continue
+
+            try:
+                rules.extend(XmlRuleParser.parse(xml))
+            except Exception as e:
+                # never prevent the proxy from running on a bad rules file
+                print("Failed to parse a rewrite rules file: " + str(e))
+                continue
+
+        self.rules = rules
 
         for rule in self.rules:
             print("Loaded rewrite rule: " + str(rule))
+
+        if not self.rules:
+            print("No rewrite rules loaded")
 
     def response(self, flow: http.HTTPFlow):
         if not self.rules:

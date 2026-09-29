@@ -56,7 +56,7 @@ public class MitmService extends Service implements Runnable {
     Thread mThread;
     PyObject mitm;
     MitmConfig mConf;
-    String mRewriteRulesXml;
+    String[] mRewriteRulesXml;
     String m_home;
 
     @SuppressLint("BatteryLife")
@@ -137,13 +137,17 @@ public class MitmService extends Service implements Runnable {
                 askDisableDoze();
                 break;
             case MitmAPI.MSG_SET_REWRITE_RULES:
-                if (mThread != null) {
-                    log_w("MITM already running, restart the capture to apply the new rewrite rules");
-                    break;
-                }
+                String[] rules_xmls = msg.getData().getStringArray(MitmAPI.REWRITE_RULES_RESULT);
+                if (rules_xmls == null)
+                    rules_xmls = new String[]{};
+                mRewriteRulesXml = rules_xmls;
 
-                mRewriteRulesXml = msg.getData().getString(MitmAPI.REWRITE_RULES_RESULT);
-                log_i("Received " + (mRewriteRulesXml == null ? "no" : "some") + " rewrite rules");
+                if ((mThread != null) && (mitm != null)) {
+                    // the proxy is running: reload the rules in place, so that
+                    // the changes are applied without restarting the capture
+                    mitm.callAttr("set_rewrite_rules", rules_xmls);
+                } else
+                    log_i("Received " + rules_xmls.length + " rewrite rule files");
                 break;
             default:
                 log_w("Unknown message: " + msg.what);
@@ -201,7 +205,7 @@ public class MitmService extends Service implements Runnable {
         try {
             mitm.callAttr("run", mFd.getFd(), enabled_addons, addons_home.toString(), dump_client,
                     mConf.dumpMasterSecrets, mConf.shortPayload, args,
-                    (mRewriteRulesXml != null) ? mRewriteRulesXml : "");
+                    (mRewriteRulesXml != null) ? mRewriteRulesXml : new String[]{});
         } finally {
             try {
                 if(mFd != null)
