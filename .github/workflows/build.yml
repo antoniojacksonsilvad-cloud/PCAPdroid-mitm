@@ -35,6 +35,15 @@ jobs:
       - name: Test the XML rewrite rules parser
         run: python app/src/main/python/modules/rewrite_rules.py
 
+      - name: Restore the debug keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          # the secrets are masked by GitHub, do not print them
+          umask 077
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/debug.keystore"
+          test -s "$RUNNER_TEMP/debug.keystore" || { echo "the keystore secret is empty or invalid"; exit 1; }
+
       - name: Assemble release APKs
         run: ./gradlew assembleRelease --stacktrace
 
@@ -42,9 +51,14 @@ jobs:
         run: .github/check_16kb_alignment.sh $(find app/build/outputs/apk -name '*.apk')
 
       # The release APKs are unsigned (the signing keystore is not in the
-      # repo), so build the debug variants, which are signed with the debug key
-      # and can be installed on a device.
+      # repo), so build the debug variants, which are signed with the fixed
+      # debug keystore and can be installed on a device.
       - name: Assemble debug APKs
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/debug.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload debug APKs
