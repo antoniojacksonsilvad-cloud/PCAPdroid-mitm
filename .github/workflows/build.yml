@@ -35,6 +35,9 @@ jobs:
       - name: Test the XML rewrite rules parser
         run: python app/src/main/python/modules/rewrite_rules.py
 
+      - name: Test the Charles rewrite parser
+        run: python app/src/main/python/modules/charles_rules.py
+
       - name: Restore the debug keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
